@@ -228,7 +228,7 @@ export default function AgentClients() {
                 <CardContent className="p-4">
                   <div className="flex items-center text-red-600">
                     <AlertCircle className="h-5 w-5 mr-2" />
-                    <p>You need to check in for attendance before adding clients. Please visit the <a href="/agent/attendance" className="underline">attendance page</a> to check in.</p>
+                    <p>You need to check in for attendance before adding clients. Please use the <Button variant="link" className="p-0 underline h-auto" onClick={() => setLocation("/agent/attendance")}>attendance page</Button> to check in.</p>
                   </div>
                 </CardContent>
               </Card>

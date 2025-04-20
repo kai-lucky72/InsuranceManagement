@@ -277,6 +277,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: agent.isActive
       })));
     } catch (error) {
+      console.error("Error fetching agents:", error);
       res.status(500).json({ message: "Failed to fetch agents" });
     }
   });

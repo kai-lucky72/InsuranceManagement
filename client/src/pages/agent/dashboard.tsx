@@ -297,4 +297,4 @@ export default function AgentDashboard() {
   );
 }
 
-import { CheckCheck, Clock, LineChart, Users } from "lucide-react";
+import { CheckCheck, Clock, LineChart, Users, X } from "lucide-react";

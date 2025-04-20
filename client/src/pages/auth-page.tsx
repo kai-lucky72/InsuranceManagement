@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,26 +64,27 @@ export default function AuthPage() {
   };
 
   // If user is already logged in, redirect to appropriate dashboard
-  if (user) {
-    switch (user.role) {
-      case "Admin":
-        setLocation("/admin/dashboard");
-        break;
-      case "Manager":
-        setLocation("/manager/dashboard");
-        break;
-      case "SalesStaff":
-        setLocation("/sales-staff/dashboard");
-        break;
-      case "TeamLeader":
-      case "Agent":
-        setLocation("/agent/dashboard");
-        break;
-      default:
-        setLocation("/");
+  useEffect(() => {
+    if (user) {
+      switch (user.role) {
+        case "Admin":
+          setLocation("/admin/dashboard");
+          break;
+        case "Manager":
+          setLocation("/manager/dashboard");
+          break;
+        case "SalesStaff":
+          setLocation("/sales-staff/dashboard");
+          break;
+        case "TeamLeader":
+        case "Agent":
+          setLocation("/agent/dashboard");
+          break;
+        default:
+          setLocation("/");
+      }
     }
-    return null;
-  }
+  }, [user, setLocation]);
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row items-stretch bg-neutral-100">

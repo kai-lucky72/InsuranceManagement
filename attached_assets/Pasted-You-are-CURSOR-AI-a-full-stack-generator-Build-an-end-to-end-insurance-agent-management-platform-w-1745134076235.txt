@@ -1,0 +1,50 @@
+You are CURSOR_AI, a full‑stack generator. Build an end‑to‑end insurance‑agent management platform with:
+
+TECH STACK
+- Backend: TypeScript, NestJS (or Express) + Prisma/TypeORM + PostgreSQL
+- Frontend Web: React (TypeScript)
+- Frontend Mobile: React Native (TypeScript)
+- Auth: JWT in HTTP‑only cookies
+- Cache: Redis for real‑time attendance checks
+- Notifications: Firebase SNS for mobile push; Nodemailer for email
+- Deployment: Docker, Kubernetes (or ECS), AWS/Azure
+
+SPECIFICATIONS
+
+1. ROLES & RBAC
+- Enum roles: Admin, Manager, SalesStaff, TeamLeader, Agent
+- Enforce at middleware level: only role‑authorized routes
+
+2. USER WORKFLOWS
+- **Admin:** create/deactivate Managers; view all users & help requests
+- **Manager:** create/deactivate SalesStaff; view all SalesStaff’s Agents’ attendance, clients, reports
+- **SalesStaff:** configure attendance window; create Agents (type: individual or TeamLeader with `memberIds`); view color‑coded attendance and client metrics; excuse lates; download any report
+- **TeamLeader:** view group members; fetch sub‑reports; aggregate & forward to SalesStaff
+- **Agent:** check for attendance window → mark attendance; post/patch client records; view personal performance (daily/weekly/monthly)
+
+3. DATA MODEL
+- Single `users` table with `role` enum
+- `attendance_time_frames` per SalesStaff
+- `attendance` with `excused` flag
+- `clients` with `interactionTime` and all client fields
+- `agent_groups` + `agent_group_members`
+- `messages` and `help_requests`
+
+4. API ENDPOINTS
+- **Auth**: `/auth/login`, `/auth/logout`, `/help-requests`
+- **Admin**: `/admin/managers`, `/admin/users`
+- **Manager**: `/manager/sales-staff`, `/manager/agents`, `/manager/attendance-status`, `/manager/reports`
+- **SalesStaff**: `/sales-staff/attendance-timeframe`, `/sales-staff/agents`, `/sales-staff/agent-groups`, `/sales-staff/attendance`, `/sales-staff/attendance/:id/excuse`, `/sales-staff/reports`, `/sales-staff/messages`
+- **TeamLeader**: `/leader/groups/:id/members`, `/leader/groups/:id/reports/{daily|weekly|monthly}`, `/leader/groups/:id/reports/aggregate`
+- **Agent**: `/agent/attendance-window`, `/agent/attendance`, `/agent/clients`, `/agent/performance/{daily|weekly|monthly}`
+
+5. FRONTEND
+- **React Native** for Agents: Attendance screen, Client entry form, Performance dashboard
+- **React Web** for Managers/Admins: Role‑aware dashboards, color‑coded grids, data tables, download buttons
+- Route guards based on JWT + role
+
+6. MIGRATIONS & SEEDING
+- Provide Prisma (or TypeORM) migrations for schema above
+- Seed one Admin, one Manager, one SalesStaff, two Agents
+
+Generate code modules, interfaces, controllers, services, React components, and mobile screens. Include tests for critical business logic (attendance window, excusal, report aggregation).  

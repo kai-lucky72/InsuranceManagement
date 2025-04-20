@@ -2,9 +2,9 @@ import {
   User, InsertUser, AttendanceTimeframe, InsertAttendanceTimeframe, 
   AttendanceRecord, InsertAttendanceRecord, Client, InsertClient,
   AgentGroup, InsertAgentGroup, AgentGroupMember, Report, InsertReport,
-  HelpRequest, InsertHelpRequest, Message,
+  HelpRequest, InsertHelpRequest, Message, PerformanceMetric, InsertPerformanceMetric,
   users, attendanceTimeframes, attendanceRecords, clients, 
-  agentGroups, agentGroupMembers, reports, helpRequests, messages 
+  agentGroups, agentGroupMembers, reports, helpRequests, messages, performanceMetrics
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, gte, lte, desc, asc, sql } from "drizzle-orm";
@@ -86,6 +86,13 @@ export interface IStorage {
   createMessage(senderId: number, receiverId: number, content: string): Promise<Message>;
   getMessagesByUser(userId: number): Promise<Message[]>;
   markMessageAsRead(messageId: number): Promise<void>;
+  
+  // Performance metrics
+  createPerformanceMetric(metricData: InsertPerformanceMetric): Promise<PerformanceMetric>;
+  getPerformanceMetricByUser(userId: number, period: string): Promise<PerformanceMetric | undefined>;
+  updatePerformanceMetric(id: number, updates: Partial<PerformanceMetric>): Promise<PerformanceMetric | undefined>;
+  getPerformanceMetricsByManager(managerId: number): Promise<PerformanceMetric[]>;
+  getPerformanceMetricsBySalesStaff(salesStaffId: number): Promise<PerformanceMetric[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -571,6 +578,69 @@ export class DatabaseStorage implements IStorage {
       .update(messages)
       .set({ isRead: true })
       .where(eq(messages.id, messageId));
+  }
+
+  // Performance metrics methods
+  async createPerformanceMetric(metricData: InsertPerformanceMetric): Promise<PerformanceMetric> {
+    const [metric] = await db
+      .insert(performanceMetrics)
+      .values(metricData)
+      .returning();
+    return metric;
+  }
+
+  async getPerformanceMetricByUser(userId: number, period: string): Promise<PerformanceMetric | undefined> {
+    const [metric] = await db
+      .select()
+      .from(performanceMetrics)
+      .where(and(
+        eq(performanceMetrics.userId, userId),
+        eq(performanceMetrics.period, period)
+      ))
+      .orderBy(desc(performanceMetrics.createdAt))
+      .limit(1);
+    return metric;
+  }
+
+  async updatePerformanceMetric(id: number, updates: Partial<PerformanceMetric>): Promise<PerformanceMetric | undefined> {
+    const [updatedMetric] = await db
+      .update(performanceMetrics)
+      .set(updates)
+      .where(eq(performanceMetrics.id, id))
+      .returning();
+    return updatedMetric;
+  }
+
+  async getPerformanceMetricsByManager(managerId: number): Promise<PerformanceMetric[]> {
+    // Get all salesStaff under this manager
+    const salesStaff = await this.getUsersByManager(managerId);
+    if (salesStaff.length === 0) {
+      return [];
+    }
+    
+    const salesStaffIds = salesStaff.map(staff => staff.id);
+    
+    return await db
+      .select()
+      .from(performanceMetrics)
+      .where(sql`${performanceMetrics.userId} IN (${salesStaffIds.join(',')})`)
+      .orderBy(desc(performanceMetrics.createdAt));
+  }
+
+  async getPerformanceMetricsBySalesStaff(salesStaffId: number): Promise<PerformanceMetric[]> {
+    // Get all agents under this sales staff
+    const agents = await this.getUsersBySalesStaff(salesStaffId);
+    if (agents.length === 0) {
+      return [];
+    }
+    
+    const agentIds = agents.map(agent => agent.id);
+    
+    return await db
+      .select()
+      .from(performanceMetrics)
+      .where(sql`${performanceMetrics.userId} IN (${agentIds.join(',')})`)
+      .orderBy(desc(performanceMetrics.createdAt));
   }
 }
 

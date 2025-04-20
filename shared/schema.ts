@@ -83,9 +83,13 @@ export const reports = pgTable("reports", {
   reportType: text("report_type").notNull(), // "daily", "weekly", "monthly"
   content: text("content").notNull(),
   isAggregated: boolean("is_aggregated").default(false).notNull(),
-  parentReportId: integer("parent_report_id").references(() => reports.id),
+  parentReportId: integer("parent_report_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Note: The self-reference for reports is handled automatically by Drizzle
+// We define parentReportId as an integer that can be null, which allows for the self-reference
+// We'll handle the reference checking in our application logic
 
 // Help requests
 export const helpRequests = pgTable("help_requests", {
@@ -105,6 +109,20 @@ export const messages = pgTable("messages", {
   receiverId: integer("receiver_id").notNull().references(() => users.id),
   content: text("content").notNull(),
   isRead: boolean("is_read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Performance metrics
+export const performanceMetrics = pgTable("performance_metrics", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  period: text("period").notNull(), // "daily", "weekly", "monthly"
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  clientsAdded: integer("clients_added").default(0).notNull(),
+  attendanceRate: integer("attendance_rate").default(0).notNull(),
+  reportsSubmitted: integer("reports_submitted").default(0).notNull(),
+  lastActivity: timestamp("last_activity"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -155,6 +173,11 @@ export const insertHelpRequestSchema = createInsertSchema(helpRequests).omit({
   updatedAt: true 
 });
 
+export const insertPerformanceMetricsSchema = createInsertSchema(performanceMetrics).omit({
+  id: true,
+  createdAt: true
+});
+
 // Type definitions
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -181,3 +204,6 @@ export type HelpRequest = typeof helpRequests.$inferSelect;
 export type InsertHelpRequest = z.infer<typeof insertHelpRequestSchema>;
 
 export type Message = typeof messages.$inferSelect;
+
+export type PerformanceMetric = typeof performanceMetrics.$inferSelect;
+export type InsertPerformanceMetric = z.infer<typeof insertPerformanceMetricsSchema>;

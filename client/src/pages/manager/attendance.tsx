@@ -179,7 +179,7 @@ export default function ManagerAttendance() {
                       <p className="text-neutral-500 text-sm">Total Check-ins</p>
                       <h3 className="text-2xl font-bold text-neutral-900">{attendanceStats.total}</h3>
                     </div>
-                    <UserGroup className="h-10 w-10 text-indigo-600 opacity-80" />
+                    <Users className="h-10 w-10 text-indigo-600 opacity-80" />
                   </div>
                 </CardContent>
               </Card>

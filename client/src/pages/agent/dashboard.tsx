@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { 
-  UserPlus, FileChartColumn, CalendarCheck, Eye, ArrowRight, PlusCircle 
+  UserPlus, FileChartColumn, CalendarCheck, Eye, ArrowRight, PlusCircle, Cross
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -94,7 +94,7 @@ export default function AgentDashboard() {
           backgroundColor="bg-accent"
         />
       )}
-      
+
       <div className="flex flex-1 overflow-hidden">
         {!isMobile && (
           <Sidebar 
@@ -105,14 +105,14 @@ export default function AgentDashboard() {
             accentColor="text-accent"
           />
         )}
-        
+
         <main className="flex-1 overflow-y-auto">
           <div className="container mx-auto px-4 py-6">
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-neutral-800">Dashboard</h2>
               <p className="text-neutral-600">Welcome back, {user?.fullName}</p>
             </div>
-            
+
             {/* Attendance Check-in Card */}
             <Card className="mb-6">
               <CardContent className="p-6">
@@ -121,7 +121,7 @@ export default function AgentDashboard() {
                     {attendanceStatus === "On Time" || attendanceStatus === "Late" ? (
                       <CheckCheck className="h-5 w-5" />
                     ) : (
-                      <X className="h-5 w-5" />
+                      <Cross className="h-5 w-5" />
                     )}
                   </div>
                   <div className="ml-3">
@@ -139,7 +139,7 @@ export default function AgentDashboard() {
                     )}
                   </div>
                 </div>
-                
+
                 <div className="bg-neutral-50 p-3 rounded-md border border-neutral-200">
                   <div className="text-sm text-neutral-700">Check-in window</div>
                   <div className="flex items-center text-neutral-900">
@@ -149,7 +149,7 @@ export default function AgentDashboard() {
                     <Clock className="text-red-500 mr-2 h-5 w-5" />
                     <span>9:30 AM</span>
                   </div>
-                  
+
                   {!todayAttendance && (
                     <div className="mt-3">
                       <Button 
@@ -183,7 +183,7 @@ export default function AgentDashboard() {
                       <div className="text-xs text-neutral-600">Last 30 days</div>
                     </div>
                   </div>
-                  
+
                   <div className="mt-4">
                     <h4 className="text-sm font-medium text-neutral-700 mb-2">Today's Goal Progress</h4>
                     <div className="relative pt-1">
@@ -201,7 +201,7 @@ export default function AgentDashboard() {
                   </div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg">Quick Actions</CardTitle>
@@ -291,10 +291,10 @@ export default function AgentDashboard() {
           </div>
         </main>
       </div>
-      
+
       {isMobile && <MobileNav navItems={navItems} />}
     </div>
   );
 }
 
-import { CheckCheck, Clock, LineChart, Users, X } from "lucide-react";
+import { CheckCheck, Clock, LineChart, Users, } from "lucide-react";

@@ -106,3 +106,16 @@ export type Client = InferModel<typeof clients>;
 export type Report = InferModel<typeof reports>;
 export type HelpRequest = InferModel<typeof helpRequests>;
 export type Message = InferModel<typeof messages>;
+export type PerformanceMetric = InferModel<typeof performanceMetrics>;
+
+export const performanceMetrics = pgTable('performance_metrics', {
+  id: integer('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id),
+  period: text('period').notNull(), // daily, weekly, monthly
+  clientsAcquired: integer('clients_acquired').notNull().default(0),
+  attendanceRate: integer('attendance_rate').notNull().default(0),
+  performanceScore: integer('performance_score').notNull().default(0),
+  performanceTrend: integer('performance_trend').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow()
+});

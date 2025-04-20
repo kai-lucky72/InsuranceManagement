@@ -3,7 +3,7 @@ import {
   AttendanceRecord, InsertAttendanceRecord, Client, InsertClient,
   AgentGroup, InsertAgentGroup, AgentGroupMember, Report, InsertReport,
   HelpRequest, InsertHelpRequest, Message, PerformanceMetric, InsertPerformanceMetric,
-  users, attendanceTimeframes, attendanceRecords, clients, 
+  users, attendanceTimeframes, attendance as attendanceRecords, clients, 
   agentGroups, agentGroupMembers, reports, helpRequests, messages, performanceMetrics
 } from "@shared/schema";
 import { db } from "./db";

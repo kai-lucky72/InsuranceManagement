@@ -20,6 +20,7 @@ import ManagerAgents from "@/pages/manager/agents";
 import ManagerAttendance from "@/pages/manager/attendance";
 import ManagerReports from "@/pages/manager/reports";
 import ManagerAgentProfile from "@/pages/manager/agent-profile";
+import ManagerPerformance from "@/pages/manager/performance";
 
 // Sales Staff pages
 import SalesStaffDashboard from "@/pages/sales-staff/dashboard";
@@ -53,6 +54,7 @@ function Router() {
       <ProtectedRoute path="/manager/agents" requiredRoles={["Manager"]} component={ManagerAgents} />
       <ProtectedRoute path="/manager/attendance" requiredRoles={["Manager"]} component={ManagerAttendance} />
       <ProtectedRoute path="/manager/reports" requiredRoles={["Manager"]} component={ManagerReports} />
+      <ProtectedRoute path="/manager/performance" requiredRoles={["Manager"]} component={ManagerPerformance} />
       <ProtectedRoute path="/manager/agents/:id" requiredRoles={["Manager"]} component={ManagerAgentProfile} />
       
       {/* Sales Staff routes */}

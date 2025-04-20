@@ -748,6 +748,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Performance Metrics endpoints
+  app.get("/api/performance-metrics/:userId", isAuthenticated, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const period = req.query.period as string || "monthly";
+      
+      const user = req.user as Express.User;
+      
+      // Only allow users to access their own metrics or if they're a manager/sales staff/admin
+      if (userId !== user.id && !["Admin", "Manager", "SalesStaff"].includes(user.role)) {
+        return res.status(403).json({ message: "Unauthorized to access this resource" });
+      }
+      
+      const metric = await storage.getPerformanceMetricByUser(userId, period);
+      if (!metric) {
+        return res.status(404).json({ message: "Performance metric not found" });
+      }
+      
+      res.json(metric);
+    } catch (error) {
+      console.error("Error fetching performance metric:", error);
+      res.status(500).json({ message: "Failed to fetch performance metric" });
+    }
+  });
+
+  app.post("/api/performance-metrics", isAuthenticated, hasRole(["Admin", "Manager", "SalesStaff"]), validateBody(insertPerformanceMetricsSchema), async (req, res) => {
+    try {
+      const metricData = req.body;
+      
+      // Check if metric already exists for this user and period
+      const existingMetric = await storage.getPerformanceMetricByUser(metricData.userId, metricData.period);
+      
+      if (existingMetric) {
+        // Update existing metric
+        const updatedMetric = await storage.updatePerformanceMetric(existingMetric.id, metricData);
+        return res.json(updatedMetric);
+      }
+      
+      // Create new metric
+      const metric = await storage.createPerformanceMetric(metricData);
+      res.status(201).json(metric);
+    } catch (error) {
+      console.error("Error creating performance metric:", error);
+      res.status(500).json({ message: "Failed to create performance metric" });
+    }
+  });
+
+  app.get("/api/manager/performance-metrics", isAuthenticated, hasRole(["Manager"]), async (req, res) => {
+    try {
+      const user = req.user as Express.User;
+      const metrics = await storage.getPerformanceMetricsByManager(user.id);
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching manager performance metrics:", error);
+      res.status(500).json({ message: "Failed to fetch performance metrics" });
+    }
+  });
+
+  app.get("/api/sales-staff/performance-metrics", isAuthenticated, hasRole(["SalesStaff"]), async (req, res) => {
+    try {
+      const user = req.user as Express.User;
+      const metrics = await storage.getPerformanceMetricsBySalesStaff(user.id);
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching sales staff performance metrics:", error);
+      res.status(500).json({ message: "Failed to fetch performance metrics" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -194,7 +194,7 @@ export default function AgentClients() {
       ) : (
         <Header title="Agent Portal" backgroundColor="bg-accent" />
       )}
-      
+
       <div className="flex flex-1 overflow-hidden">
         {!isMobile && (
           <Sidebar 
@@ -205,7 +205,7 @@ export default function AgentClients() {
             accentColor="text-accent"
           />
         )}
-        
+
         <main className="flex-1 overflow-y-auto">
           <div className="container mx-auto px-4 py-6">
             <div className="flex justify-between items-center mb-6">
@@ -222,7 +222,7 @@ export default function AgentClients() {
                 <UserPlus className="mr-2 h-4 w-4" /> Add Client
               </Button>
             </div>
-            
+
             {!canAddClients && (
               <Card className="mb-6 border-red-300 bg-red-50">
                 <CardContent className="p-4">
@@ -233,7 +233,7 @@ export default function AgentClients() {
                 </CardContent>
               </Card>
             )}
-            
+
             <div className="mb-4">
               <div className="relative">
                 <Input
@@ -245,7 +245,7 @@ export default function AgentClients() {
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-neutral-400" />
               </div>
             </div>
-            
+
             <Card>
               <CardHeader className="pb-0">
                 <CardTitle>Client List</CardTitle>
@@ -353,9 +353,9 @@ export default function AgentClients() {
           </div>
         </main>
       </div>
-      
+
       {isMobile && <MobileNav navItems={navItems} />}
-      
+
       {/* Add Client Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className={isMobile ? "w-full max-w-full h-full" : "max-w-xl"}>
@@ -368,7 +368,7 @@ export default function AgentClients() {
           <ClientForm onSubmit={handleAddClient} isSubmitting={createClientMutation.isPending} />
         </DialogContent>
       </Dialog>
-      
+
       {/* View Client Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="max-w-lg">
@@ -427,7 +427,7 @@ export default function AgentClients() {
           </div>
         </DialogContent>
       </Dialog>
-      
+
       {/* Edit Client Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className={isMobile ? "w-full max-w-full h-full" : "max-w-xl"}>
@@ -447,7 +447,7 @@ export default function AgentClients() {
           )}
         </DialogContent>
       </Dialog>
-      
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { 
-  UserPlus, FileChartColumn, CalendarCheck, Eye, ArrowRight, PlusCircle, Cross
+  UserPlus, FileChartColumn, CalendarCheck, Eye, ArrowRight, PlusCircle, Cross, Check as CheckCheck, Clock, LineChart, Users
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -296,5 +296,3 @@ export default function AgentDashboard() {
     </div>
   );
 }
-
-import { CheckCheck, Clock, LineChart, Users, } from "lucide-react";

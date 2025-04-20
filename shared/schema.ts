@@ -1,4 +1,3 @@
-
 import { InferModel } from 'drizzle-orm';
 import { pgTable, text, integer, timestamp, boolean, pgEnum } from 'drizzle-orm/pg-core';
 import { z } from "zod";
@@ -155,9 +154,70 @@ export type LoginUser = {
   workId: string;
 };
 
-// Login schema
+// Validation schemas
+import { z } from "zod";
+
 export const loginUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   workId: z.string().min(3)
+});
+
+export const insertUserSchema = z.object({
+  workId: z.string().min(3),
+  email: z.string().email(),
+  password: z.string().min(6),
+  fullName: z.string().min(2),
+  role: z.enum(["Admin", "Manager", "SalesStaff", "TeamLeader", "Agent"]),
+  isActive: z.boolean().optional()
+});
+
+export const insertAttendanceRecordSchema = z.object({
+  agentId: z.number(),
+  checkInTime: z.date(),
+  isLate: z.boolean(),
+  isExcused: z.boolean(),
+  excuseReason: z.string().optional()
+});
+
+export const insertAttendanceTimeframeSchema = z.object({
+  salesStaffId: z.number(),
+  startTime: z.string(),
+  endTime: z.string()
+});
+
+export const insertClientSchema = z.object({
+  agentId: z.number(),
+  fullName: z.string(),
+  email: z.string().email().optional(),
+  phone: z.string(),
+  insuranceType: z.string(),
+  policyDetails: z.string().optional(),
+  interactionTime: z.date(),
+  requiresFollowUp: z.boolean(),
+  followUpDate: z.date().optional()
+});
+
+export const insertReportSchema = z.object({
+  submittedById: z.number(),
+  title: z.string(),
+  reportType: z.enum(["daily", "weekly", "monthly"]),
+  content: z.string(),
+  isAggregated: z.boolean().optional()
+});
+
+export const insertHelpRequestSchema = z.object({
+  userId: z.number(),
+  requestType: z.string(),
+  issue: z.string(),
+  status: z.string()
+});
+
+export const insertPerformanceMetricsSchema = z.object({
+  userId: z.number(),
+  period: z.string(),
+  clientsAcquired: z.number(),
+  attendanceRate: z.number(),
+  performanceScore: z.number(),
+  performanceTrend: z.number()
 });

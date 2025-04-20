@@ -5,10 +5,10 @@ import { z } from "zod";
 // Define enums
 export const roleEnum = pgEnum('role', ['Admin', 'Manager', 'SalesStaff', 'TeamLeader', 'Agent']);
 export const reportTypeEnum = pgEnum('report_type', ['daily', 'weekly', 'monthly']);
-export const reportStatusEnum = pgEnum('report_status', ['pending', 'approved', 'rejected']);
+export const reportStatusEnum = pgEnum('report_status', ['draft', 'pending_team_leader', 'pending_sales_staff', 'approved', 'rejected']);
 export const messageTypeEnum = pgEnum('message_type', ['direct', 'announcement', 'report_feedback']);
 
-// Tables
+// Users table with proper relationships
 export const users = pgTable('users', {
   id: integer('id').primaryKey(),
   workId: text('work_id').notNull().unique(),
@@ -16,12 +16,15 @@ export const users = pgTable('users', {
   fullName: text('full_name').notNull(),
   password: text('password').notNull(),
   role: roleEnum('role').notNull(),
-  createdById: integer('created_by_id').references(() => users.id),
+  managerId: integer('manager_id').references(() => users.id),
+  salesStaffId: integer('sales_staff_id').references(() => users.id),
+  teamLeaderId: integer('team_leader_id').references(() => users.id),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
+// Attendance timeframes set by sales staff
 export const attendanceTimeframes = pgTable('attendance_timeframes', {
   id: integer('id').primaryKey(),
   salesStaffId: integer('sales_staff_id').notNull().references(() => users.id),
@@ -31,6 +34,7 @@ export const attendanceTimeframes = pgTable('attendance_timeframes', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
+// Daily attendance records
 export const attendance = pgTable('attendance', {
   id: integer('id').primaryKey(),
   agentId: integer('agent_id').notNull().references(() => users.id),
@@ -42,6 +46,7 @@ export const attendance = pgTable('attendance', {
   createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
+// Agent groups managed by team leaders
 export const agentGroups = pgTable('agent_groups', {
   id: integer('id').primaryKey(),
   teamLeaderId: integer('team_leader_id').notNull().references(() => users.id),
@@ -51,6 +56,7 @@ export const agentGroups = pgTable('agent_groups', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
+// Members of agent groups
 export const agentGroupMembers = pgTable('agent_group_members', {
   id: integer('id').primaryKey(),
   groupId: integer('group_id').notNull().references(() => agentGroups.id),
@@ -58,6 +64,7 @@ export const agentGroupMembers = pgTable('agent_group_members', {
   createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
+// Client records managed by agents
 export const clients = pgTable('clients', {
   id: integer('id').primaryKey(),
   agentId: integer('agent_id').notNull().references(() => users.id),
@@ -73,21 +80,28 @@ export const clients = pgTable('clients', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
+// Reports from agents to team leaders and sales staff
 export const reports = pgTable('reports', {
   id: integer('id').primaryKey(),
-  submittedById: integer('submitted_by_id').notNull().references(() => users.id),
-  reviewedById: integer('reviewed_by_id').references(() => users.id),
+  agentId: integer('submitted_by_id').notNull().references(() => users.id),
+  teamLeaderId: integer('team_leader_id').references(() => users.id),
+  salesStaffId: integer('sales_staff_id').references(() => users.id),
   title: text('title').notNull(),
   reportType: reportTypeEnum('report_type').notNull(),
-  status: reportStatusEnum('report_status').notNull().default('pending'),
+  status: reportStatusEnum('report_status').notNull().default('draft'),
   content: text('content').notNull(),
+  clientCount: integer('client_count').notNull().default(0),
+  startDate: timestamp('start_date').notNull(),
+  endDate: timestamp('end_date').notNull(),
+  teamLeaderFeedback: text('team_leader_feedback'),
+  salesStaffFeedback: text('sales_staff_feedback'),
   isAggregated: boolean('is_aggregated').notNull().default(false),
   parentReportId: integer('parent_report_id').references(() => reports.id),
-  feedback: text('feedback'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
+// Help requests from agents
 export const helpRequests = pgTable('help_requests', {
   id: integer('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id),
@@ -100,6 +114,7 @@ export const helpRequests = pgTable('help_requests', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
+// Messages between users
 export const messages = pgTable('messages', {
   id: integer('id').primaryKey(),
   senderId: integer('sender_id').notNull().references(() => users.id),
@@ -111,52 +126,34 @@ export const messages = pgTable('messages', {
   createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
+// Performance metrics
 export const performanceMetrics = pgTable('performance_metrics', {
   id: integer('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id),
   period: text('period').notNull(),
   clientsAcquired: integer('clients_acquired').notNull().default(0),
   attendanceRate: integer('attendance_rate').notNull().default(0),
-  performanceScore: integer('performance_score').notNull().default(0),
-  performanceTrend: integer('performance_trend').notNull().default(0),
   reportsSubmitted: integer('reports_submitted').notNull().default(0),
   reportApprovalRate: integer('report_approval_rate').notNull().default(0),
+  performanceScore: integer('performance_score').notNull().default(0),
+  performanceTrend: integer('performance_trend').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
 // Export types
 export type User = InferModel<typeof users>;
-export type InsertUser = Omit<User, 'id' | 'createdAt' | 'updatedAt'>;
 export type AttendanceTimeframe = InferModel<typeof attendanceTimeframes>;
-export type InsertAttendanceTimeframe = Omit<AttendanceTimeframe, 'id' | 'createdAt' | 'updatedAt'>;
 export type Attendance = InferModel<typeof attendance>;
-export type InsertAttendance = Omit<Attendance, 'id' | 'createdAt'>;
 export type AgentGroup = InferModel<typeof agentGroups>;
-export type InsertAgentGroup = Omit<AgentGroup, 'id' | 'createdAt' | 'updatedAt'>;
 export type AgentGroupMember = InferModel<typeof agentGroupMembers>;
-export type InsertAgentGroupMember = Omit<AgentGroupMember, 'id' | 'createdAt'>;
 export type Client = InferModel<typeof clients>;
-export type InsertClient = Omit<Client, 'id' | 'createdAt' | 'updatedAt'>;
 export type Report = InferModel<typeof reports>;
-export type InsertReport = Omit<Report, 'id' | 'createdAt' | 'updatedAt'>;
 export type HelpRequest = InferModel<typeof helpRequests>;
-export type InsertHelpRequest = Omit<HelpRequest, 'id' | 'createdAt' | 'updatedAt'>;
 export type Message = InferModel<typeof messages>;
-export type InsertMessage = Omit<Message, 'id' | 'createdAt'>;
 export type PerformanceMetric = InferModel<typeof performanceMetrics>;
-export type InsertPerformanceMetric = Omit<PerformanceMetric, 'id' | 'createdAt' | 'updatedAt'>;
-
-// Auth types
-export type LoginUser = {
-  email: string;
-  password: string;
-  workId: string;
-};
 
 // Validation schemas
-import { z } from "zod";
-
 export const loginUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
@@ -168,56 +165,27 @@ export const insertUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   fullName: z.string().min(2),
-  role: z.enum(["Admin", "Manager", "SalesStaff", "TeamLeader", "Agent"]),
+  role: z.enum(['Admin', 'Manager', 'SalesStaff', 'TeamLeader', 'Agent']),
+  managerId: z.number().optional(),
+  salesStaffId: z.number().optional(),
+  teamLeaderId: z.number().optional(),
   isActive: z.boolean().optional()
 });
 
-export const insertAttendanceRecordSchema = z.object({
-  agentId: z.number(),
-  checkInTime: z.date(),
-  isLate: z.boolean(),
-  isExcused: z.boolean(),
-  excuseReason: z.string().optional()
-});
-
-export const insertAttendanceTimeframeSchema = z.object({
-  salesStaffId: z.number(),
-  startTime: z.string(),
-  endTime: z.string()
-});
-
-export const insertClientSchema = z.object({
-  agentId: z.number(),
-  fullName: z.string(),
-  email: z.string().email().optional(),
-  phone: z.string(),
-  insuranceType: z.string(),
-  policyDetails: z.string().optional(),
-  interactionTime: z.date(),
-  requiresFollowUp: z.boolean(),
-  followUpDate: z.date().optional()
-});
-
-export const insertReportSchema = z.object({
-  submittedById: z.number(),
-  title: z.string(),
-  reportType: z.enum(["daily", "weekly", "monthly"]),
-  content: z.string(),
-  isAggregated: z.boolean().optional()
-});
-
-export const insertHelpRequestSchema = z.object({
-  userId: z.number(),
-  requestType: z.string(),
-  issue: z.string(),
-  status: z.string()
-});
-
-export const insertPerformanceMetricsSchema = z.object({
-  userId: z.number(),
-  period: z.string(),
-  clientsAcquired: z.number(),
-  attendanceRate: z.number(),
-  performanceScore: z.number(),
-  performanceTrend: z.number()
-});
+// Export tables for use in queries
+export {
+  users,
+  attendanceTimeframes,
+  attendance,
+  agentGroups,
+  agentGroupMembers,
+  clients,
+  reports,
+  helpRequests,
+  messages,
+  performanceMetrics,
+  roleEnum,
+  reportTypeEnum,
+  reportStatusEnum,
+  messageTypeEnum
+};

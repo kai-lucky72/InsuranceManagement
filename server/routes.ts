@@ -625,6 +625,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const records = await storage.getAttendanceRecordsByAgent(user.id, date);
       res.json(records);
     } catch (error) {
+      console.error("Error fetching agent attendance records:", error);
       res.status(500).json({ message: "Failed to fetch attendance records" });
     }
   });
@@ -635,6 +636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const clients = await storage.getClientsByAgent(user.id);
       res.json(clients);
     } catch (error) {
+      console.error("Error fetching agent clients:", error);
       res.status(500).json({ message: "Failed to fetch clients" });
     }
   });
@@ -723,6 +725,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const report = await storage.createReport(reportData);
       res.status(201).json(report);
     } catch (error) {
+      console.error("Error creating agent report:", error);
       res.status(500).json({ message: "Failed to create report" });
     }
   });
@@ -740,6 +743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const request = await storage.createHelpRequest(requestData);
       res.status(201).json(request);
     } catch (error) {
+      console.error("Error creating help request:", error);
       res.status(500).json({ message: "Failed to create help request" });
     }
   });

@@ -22,6 +22,7 @@ import ManagerAgents from "@/pages/manager/agents";
 import SalesStaffDashboard from "@/pages/sales-staff/dashboard";
 import SalesStaffAgents from "@/pages/sales-staff/agents";
 import SalesStaffAttendance from "@/pages/sales-staff/attendance";
+import SalesStaffClients from "@/pages/sales-staff/clients";
 
 // Agent pages
 import AgentDashboard from "@/pages/agent/dashboard";
@@ -49,6 +50,7 @@ function Router() {
       <ProtectedRoute path="/sales-staff/dashboard" requiredRoles={["SalesStaff"]} component={SalesStaffDashboard} />
       <ProtectedRoute path="/sales-staff/agents" requiredRoles={["SalesStaff"]} component={SalesStaffAgents} />
       <ProtectedRoute path="/sales-staff/attendance" requiredRoles={["SalesStaff"]} component={SalesStaffAttendance} />
+      <ProtectedRoute path="/sales-staff/clients" requiredRoles={["SalesStaff"]} component={SalesStaffClients} />
       
       {/* Agent routes */}
       <ProtectedRoute path="/agent/dashboard" requiredRoles={["Agent", "TeamLeader"]} component={AgentDashboard} />

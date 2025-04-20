@@ -336,7 +336,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const groups = await storage.getAgentGroupBySalesStaff(user.id);
       res.json(groups);
     } catch (error) {
+      console.error("Error fetching agent groups:", error);
       res.status(500).json({ message: "Failed to fetch agent groups" });
+    }
+  });
+  
+  app.get("/api/sales-staff/clients", isAuthenticated, hasRole(["SalesStaff"]), async (req, res) => {
+    try {
+      const user = req.user as Express.User;
+      
+      // Get all agents under this sales staff
+      const agents = await storage.getUsersBySalesStaff(user.id);
+      
+      if (!agents.length) {
+        return res.json([]);
+      }
+      
+      // Get clients for each agent and merge them
+      const clientsPromises = agents.map(agent => storage.getClientsByAgent(agent.id));
+      const clientsArrays = await Promise.all(clientsPromises);
+      
+      // Flatten the array of arrays
+      const allClients = clientsArrays.flat();
+      
+      res.json(allClients);
+    } catch (error) {
+      console.error("Error fetching sales staff clients:", error);
+      res.status(500).json({ message: "Failed to fetch clients" });
     }
   });
 
@@ -539,8 +565,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Determine if check-in is late based on timeframe
-      // (In a real app, we would retrieve the timeframe and compare)
-      const isLate = req.body.isLate || false;
+      let isLate = false;
+      
+      // Get the agent's sales staff to find the timeframe
+      const salesStaff = await storage.getUsersByRole("SalesStaff");
+      for (const staff of salesStaff) {
+        const agents = await storage.getUsersBySalesStaff(staff.id);
+        
+        // If the current user is one of their agents
+        if (agents.some(agent => agent.id === user.id)) {
+          // Get the attendance timeframe set by this sales staff
+          const timeframe = await storage.getAttendanceTimeframeBySalesStaff(staff.id);
+          
+          if (timeframe) {
+            const [startHour, startMinute] = timeframe.startTime.split(':').map(Number);
+            const [endHour, endMinute] = timeframe.endTime.split(':').map(Number);
+            
+            const currentHours = now.getHours();
+            const currentMinutes = now.getMinutes();
+            
+            const currentTimeValue = currentHours * 60 + currentMinutes;
+            const startTimeValue = startHour * 60 + startMinute;
+            const endTimeValue = endHour * 60 + endMinute;
+            
+            // If check-in time is after the end time, it's late
+            if (currentTimeValue > endTimeValue) {
+              isLate = true;
+            }
+            
+            break;
+          }
+        }
+      }
       
       const recordData = {
         agentId: user.id,
@@ -552,6 +608,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const record = await storage.createAttendanceRecord(recordData);
       res.status(201).json(record);
     } catch (error) {
+      console.error("Error recording attendance:", error);
       res.status(500).json({ message: "Failed to record attendance" });
     }
   });
@@ -607,6 +664,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const client = await storage.createClient(clientData);
       res.status(201).json(client);
     } catch (error) {
+      console.error("Error adding client:", error);
       res.status(500).json({ message: "Failed to add client" });
     }
   });
@@ -633,7 +691,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const clients = await storage.getClientsByDateRange(user.id, startDate, now);
       
       // Get attendance records for the same period
-      let attendanceRecords: any[] = [];
+      const attendanceRecordsStartDate = new Date(startDate);
+      const attendanceRecords = await storage.getAttendanceRecordsByAgent(user.id, attendanceRecordsStartDate);
       
       // Calculate performance metrics
       const performance = {
@@ -646,6 +705,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(performance);
     } catch (error) {
+      console.error("Error fetching performance data:", error);
       res.status(500).json({ message: "Failed to fetch performance data" });
     }
   });

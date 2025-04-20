@@ -8,8 +8,8 @@ export const reportTypeEnum = pgEnum('report_type', ['daily', 'weekly', 'monthly
 export const reportStatusEnum = pgEnum('report_status', ['pending', 'approved', 'rejected']);
 export const messageTypeEnum = pgEnum('message_type', ['direct', 'announcement', 'report_feedback']);
 
-// Users table
-export const users = pgTable('users', {
+// Tables
+const users = pgTable('users', {
   id: integer('id').primaryKey(),
   workId: text('work_id').notNull().unique(),
   email: text('email').notNull().unique(),
@@ -22,8 +22,7 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
-// Attendance timeframes set by sales staff
-export const attendanceTimeframes = pgTable('attendance_timeframes', {
+const attendanceTimeframes = pgTable('attendance_timeframes', {
   id: integer('id').primaryKey(),
   salesStaffId: integer('sales_staff_id').notNull().references(() => users.id),
   startTime: text('start_time').notNull(),
@@ -32,8 +31,7 @@ export const attendanceTimeframes = pgTable('attendance_timeframes', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
-// Daily attendance records
-export const attendance = pgTable('attendance', {
+const attendance = pgTable('attendance', {
   id: integer('id').primaryKey(),
   agentId: integer('agent_id').notNull().references(() => users.id),
   checkInTime: timestamp('check_in_time').notNull(),
@@ -44,8 +42,7 @@ export const attendance = pgTable('attendance', {
   createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
-// Agent groups managed by team leaders
-export const agentGroups = pgTable('agent_groups', {
+const agentGroups = pgTable('agent_groups', {
   id: integer('id').primaryKey(),
   teamLeaderId: integer('team_leader_id').notNull().references(() => users.id),
   salesStaffId: integer('sales_staff_id').notNull().references(() => users.id),
@@ -54,16 +51,14 @@ export const agentGroups = pgTable('agent_groups', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
-// Agent group members
-export const agentGroupMembers = pgTable('agent_group_members', {
+const agentGroupMembers = pgTable('agent_group_members', {
   id: integer('id').primaryKey(),
   groupId: integer('group_id').notNull().references(() => agentGroups.id),
   agentId: integer('agent_id').notNull().references(() => users.id),
   createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
-// Client records
-export const clients = pgTable('clients', {
+const clients = pgTable('clients', {
   id: integer('id').primaryKey(),
   agentId: integer('agent_id').notNull().references(() => users.id),
   fullName: text('full_name').notNull(),
@@ -78,8 +73,7 @@ export const clients = pgTable('clients', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
-// Reports submitted by agents
-export const reports = pgTable('reports', {
+const reports = pgTable('reports', {
   id: integer('id').primaryKey(),
   submittedById: integer('submitted_by_id').notNull().references(() => users.id),
   reviewedById: integer('reviewed_by_id').references(() => users.id),
@@ -94,8 +88,7 @@ export const reports = pgTable('reports', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
-// Help requests
-export const helpRequests = pgTable('help_requests', {
+const helpRequests = pgTable('help_requests', {
   id: integer('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id),
   assignedToId: integer('assigned_to_id').references(() => users.id),
@@ -107,8 +100,7 @@ export const helpRequests = pgTable('help_requests', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
-// Messages between users
-export const messages = pgTable('messages', {
+const messages = pgTable('messages', {
   id: integer('id').primaryKey(),
   senderId: integer('sender_id').notNull().references(() => users.id),
   receiverId: integer('receiver_id').notNull().references(() => users.id),
@@ -119,8 +111,7 @@ export const messages = pgTable('messages', {
   createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
-// Performance metrics
-export const performanceMetrics = pgTable('performance_metrics', {
+const performanceMetrics = pgTable('performance_metrics', {
   id: integer('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id),
   period: text('period').notNull(),
@@ -156,7 +147,7 @@ export type InsertMessage = Omit<Message, 'id' | 'createdAt'>;
 export type PerformanceMetric = InferModel<typeof performanceMetrics>;
 export type InsertPerformanceMetric = Omit<PerformanceMetric, 'id' | 'createdAt' | 'updatedAt'>;
 
-// Export all tables
+// Export tables
 export {
   users,
   attendanceTimeframes,
@@ -167,7 +158,7 @@ export {
   reports,
   helpRequests,
   messages,
-  performanceMetrics,
+  performanceMetrics
 };
 
 // Auth types

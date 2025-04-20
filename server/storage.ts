@@ -2,14 +2,21 @@ import {
   User, InsertUser, AttendanceTimeframe, InsertAttendanceTimeframe, 
   AttendanceRecord, InsertAttendanceRecord, Client, InsertClient,
   AgentGroup, InsertAgentGroup, AgentGroupMember, Report, InsertReport,
-  HelpRequest, InsertHelpRequest, Message
+  HelpRequest, InsertHelpRequest, Message,
+  users, attendanceTimeframes, attendanceRecords, clients, 
+  agentGroups, agentGroupMembers, reports, helpRequests, messages 
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, or, gte, lte, desc, asc, sql } from "drizzle-orm";
+import { Pool } from '@neondatabase/serverless';
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import connectPg from "connect-pg-simple";
 
 const MemoryStore = createMemoryStore(session);
+const PostgresSessionStore = connectPg(session);
 const scryptAsync = promisify(scrypt);
 
 // Password utilities
@@ -81,63 +88,20 @@ export interface IStorage {
   markMessageAsRead(messageId: number): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private attendanceTimeframes: Map<number, AttendanceTimeframe>;
-  private attendanceRecords: Map<number, AttendanceRecord>;
-  private clients: Map<number, Client>;
-  private agentGroups: Map<number, AgentGroup>;
-  private agentGroupMembers: Map<number, AgentGroupMember>;
-  private reports: Map<number, Report>;
-  private helpRequests: Map<number, HelpRequest>;
-  private messages: Map<number, Message>;
-  
+export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
   
-  private nextIds: {
-    user: number;
-    attendanceTimeframe: number;
-    attendanceRecord: number;
-    client: number;
-    agentGroup: number;
-    agentGroupMember: number;
-    report: number;
-    helpRequest: number;
-    message: number;
-  };
-
   constructor() {
-    this.users = new Map();
-    this.attendanceTimeframes = new Map();
-    this.attendanceRecords = new Map();
-    this.clients = new Map();
-    this.agentGroups = new Map();
-    this.agentGroupMembers = new Map();
-    this.reports = new Map();
-    this.helpRequests = new Map();
-    this.messages = new Map();
-    
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 86400000 // Prune expired entries every 24h
+    this.sessionStore = new PostgresSessionStore({
+      pool: new Pool({ connectionString: process.env.DATABASE_URL }),
+      createTableIfMissing: true
     });
     
-    this.nextIds = {
-      user: 1,
-      attendanceTimeframe: 1,
-      attendanceRecord: 1,
-      client: 1,
-      agentGroup: 1,
-      agentGroupMember: 1,
-      report: 1,
-      helpRequest: 1,
-      message: 1
-    };
-    
-    // Create default users on initialization
+    // Initialize default users
     this.initializeDefaultUsers();
   }
-
-  private async initializeDefaultUsers() {
+  
+  async initializeDefaultUsers() {
     const adminExists = await this.getUserByWorkId("ADM001");
     if (!adminExists) {
       await this.createUser({
@@ -212,134 +176,126 @@ export class MemStorage implements IStorage {
       }
     }
   }
-
+  
   // User Management
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(user => user.email === email);
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
   }
 
   async getUserByWorkId(workId: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(user => user.workId === workId);
+    const [user] = await db.select().from(users).where(eq(users.workId, workId));
+    return user;
   }
 
   async createUser(userData: InsertUser): Promise<User> {
-    const id = this.nextIds.user++;
-    const now = new Date();
-    const user: User = {
-      ...userData,
-      id,
-      createdAt: now,
-      updatedAt: now
-    };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(userData).returning();
     return user;
   }
 
   async updateUser(id: number, updates: Partial<User>): Promise<User | undefined> {
-    const user = await this.getUser(id);
-    if (!user) return undefined;
-    
-    const updatedUser: User = {
-      ...user,
-      ...updates,
-      updatedAt: new Date()
-    };
-    
-    this.users.set(id, updatedUser);
+    const [updatedUser] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
     return updatedUser;
   }
 
   async getUsersByRole(role: string): Promise<User[]> {
-    return Array.from(this.users.values())
-      .filter(user => user.role === role && user.isActive);
+    return await db
+      .select()
+      .from(users)
+      .where(and(
+        sql`${users.role}::text = ${role}`,
+        eq(users.isActive, true)
+      ));
   }
 
   async getUsersBySalesStaff(salesStaffId: number): Promise<User[]> {
-    // Get all agents that belong to groups managed by this sales staff
-    const salesStaffGroups = await this.getAgentGroupBySalesStaff(salesStaffId);
-    const groupMemberIds = new Set<number>();
+    // Get all groups managed by this sales staff
+    const groups = await this.getAgentGroupBySalesStaff(salesStaffId);
+    const groupIds = groups.map(group => group.id);
     
-    for (const group of salesStaffGroups) {
-      const members = await this.getAgentGroupMembers(group.id);
-      members.forEach(member => groupMemberIds.add(member.id));
+    if (groupIds.length === 0) {
+      // If no groups, return empty array
+      return [];
     }
     
-    // Also include individual agents directly under this sales staff
-    const allAgents = await this.getUsersByRole("Agent");
-    const teamLeaders = await this.getUsersByRole("TeamLeader");
+    // Get all agents in these groups
+    const groupMembers = await db
+      .select()
+      .from(agentGroupMembers)
+      .where(sql`${agentGroupMembers.groupId} IN (${groupIds.join(',')})`);
     
-    // Combine all users who are either team leaders or regular agents managed by this sales staff
-    return [...allAgents, ...teamLeaders].filter(user => {
-      // Either the user is in a group managed by this sales staff
-      // or is an individual agent not in any group
-      return groupMemberIds.has(user.id) || !this.isAgentInAnyGroup(user.id);
-    });
+    if (groupMembers.length === 0) {
+      return [];
+    }
+    
+    const agentIds = groupMembers.map(member => member.agentId);
+    
+    // Get all agents (either directly managed or part of a team leader's group)
+    return await db
+      .select()
+      .from(users)
+      .where(and(
+        sql`${users.role}::text IN ('Agent', 'TeamLeader')`,
+        eq(users.isActive, true),
+        sql`${users.id} IN (${agentIds.join(',')})`
+      ));
   }
 
   async getUsersByManager(managerId: number): Promise<User[]> {
-    // For the manager, get all sales staff
-    const salesStaff = await this.getUsersByRole("SalesStaff");
-    return salesStaff;
-  }
-
-  private async isAgentInAnyGroup(agentId: number): Promise<boolean> {
-    return Array.from(this.agentGroupMembers.values())
-      .some(member => member.agentId === agentId);
+    // For MVPs, just return all sales staff
+    return await db
+      .select()
+      .from(users)
+      .where(and(
+        sql`${users.role}::text = 'SalesStaff'`,
+        eq(users.isActive, true)
+      ));
   }
 
   // Attendance Management
   async createAttendanceTimeframe(timeframeData: InsertAttendanceTimeframe): Promise<AttendanceTimeframe> {
-    const id = this.nextIds.attendanceTimeframe++;
-    const now = new Date();
-    const timeframe: AttendanceTimeframe = {
-      ...timeframeData,
-      id,
-      createdAt: now,
-      updatedAt: now
-    };
-    this.attendanceTimeframes.set(id, timeframe);
+    const [timeframe] = await db
+      .insert(attendanceTimeframes)
+      .values(timeframeData)
+      .returning();
     return timeframe;
   }
 
   async getAttendanceTimeframeBySalesStaff(salesStaffId: number): Promise<AttendanceTimeframe | undefined> {
-    return Array.from(this.attendanceTimeframes.values())
-      .find(timeframe => timeframe.salesStaffId === salesStaffId);
+    const [timeframe] = await db
+      .select()
+      .from(attendanceTimeframes)
+      .where(eq(attendanceTimeframes.salesStaffId, salesStaffId));
+    return timeframe;
   }
 
   async updateAttendanceTimeframe(id: number, updates: Partial<AttendanceTimeframe>): Promise<AttendanceTimeframe | undefined> {
-    const timeframe = this.attendanceTimeframes.get(id);
-    if (!timeframe) return undefined;
-    
-    const updatedTimeframe: AttendanceTimeframe = {
-      ...timeframe,
-      ...updates,
-      updatedAt: new Date()
-    };
-    
-    this.attendanceTimeframes.set(id, updatedTimeframe);
+    const [updatedTimeframe] = await db
+      .update(attendanceTimeframes)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(attendanceTimeframes.id, id))
+      .returning();
     return updatedTimeframe;
   }
 
   async createAttendanceRecord(recordData: InsertAttendanceRecord): Promise<AttendanceRecord> {
-    const id = this.nextIds.attendanceRecord++;
-    const now = new Date();
-    const record: AttendanceRecord = {
-      ...recordData,
-      id,
-      createdAt: now
-    };
-    this.attendanceRecords.set(id, record);
+    const [record] = await db
+      .insert(attendanceRecords)
+      .values(recordData)
+      .returning();
     return record;
   }
 
   async getAttendanceRecordsByAgent(agentId: number, date?: Date): Promise<AttendanceRecord[]> {
-    const records = Array.from(this.attendanceRecords.values())
-      .filter(record => record.agentId === agentId);
-    
     if (date) {
       const startOfDay = new Date(date);
       startOfDay.setHours(0, 0, 0, 0);
@@ -347,23 +303,33 @@ export class MemStorage implements IStorage {
       const endOfDay = new Date(date);
       endOfDay.setHours(23, 59, 59, 999);
       
-      return records.filter(record => 
-        record.checkInTime >= startOfDay && record.checkInTime <= endOfDay
-      );
+      return await db
+        .select()
+        .from(attendanceRecords)
+        .where(and(
+          eq(attendanceRecords.agentId, agentId),
+          gte(attendanceRecords.checkInTime, startOfDay),
+          lte(attendanceRecords.checkInTime, endOfDay)
+        ));
     }
     
-    return records;
+    return await db
+      .select()
+      .from(attendanceRecords)
+      .where(eq(attendanceRecords.agentId, agentId))
+      .orderBy(desc(attendanceRecords.checkInTime));
   }
 
   async getAttendanceRecordsBySalesStaff(salesStaffId: number, date?: Date): Promise<AttendanceRecord[]> {
     // Get all agents managed by this sales staff
     const agents = await this.getUsersBySalesStaff(salesStaffId);
+    if (agents.length === 0) {
+      return [];
+    }
+    
     const agentIds = agents.map(agent => agent.id);
     
-    // Get attendance records for these agents
-    const records = Array.from(this.attendanceRecords.values())
-      .filter(record => agentIds.includes(record.agentId));
-    
+    // Query attendance records
     if (date) {
       const startOfDay = new Date(date);
       startOfDay.setHours(0, 0, 0, 0);
@@ -371,213 +337,242 @@ export class MemStorage implements IStorage {
       const endOfDay = new Date(date);
       endOfDay.setHours(23, 59, 59, 999);
       
-      return records.filter(record => 
-        record.checkInTime >= startOfDay && record.checkInTime <= endOfDay
-      );
+      return await db
+        .select()
+        .from(attendanceRecords)
+        .where(and(
+          sql`${attendanceRecords.agentId} IN (${agentIds.join(',')})`,
+          gte(attendanceRecords.checkInTime, startOfDay),
+          lte(attendanceRecords.checkInTime, endOfDay)
+        ))
+        .orderBy(desc(attendanceRecords.checkInTime));
     }
     
-    return records;
+    return await db
+      .select()
+      .from(attendanceRecords)
+      .where(sql`${attendanceRecords.agentId} IN (${agentIds.join(',')})`)
+      .orderBy(desc(attendanceRecords.checkInTime));
   }
 
   async updateAttendanceRecord(id: number, updates: Partial<AttendanceRecord>): Promise<AttendanceRecord | undefined> {
-    const record = this.attendanceRecords.get(id);
-    if (!record) return undefined;
-    
-    const updatedRecord: AttendanceRecord = {
-      ...record,
-      ...updates
-    };
-    
-    this.attendanceRecords.set(id, updatedRecord);
+    const [updatedRecord] = await db
+      .update(attendanceRecords)
+      .set(updates)
+      .where(eq(attendanceRecords.id, id))
+      .returning();
     return updatedRecord;
   }
 
   // Client Management
   async createClient(clientData: InsertClient): Promise<Client> {
-    const id = this.nextIds.client++;
-    const now = new Date();
-    const client: Client = {
-      ...clientData,
-      id,
-      createdAt: now,
-      updatedAt: now
-    };
-    this.clients.set(id, client);
+    const [client] = await db
+      .insert(clients)
+      .values(clientData)
+      .returning();
     return client;
   }
 
   async getClientsByAgent(agentId: number): Promise<Client[]> {
-    return Array.from(this.clients.values())
-      .filter(client => client.agentId === agentId);
+    return await db
+      .select()
+      .from(clients)
+      .where(eq(clients.agentId, agentId))
+      .orderBy(desc(clients.createdAt));
   }
 
   async getClientsBySalesStaff(salesStaffId: number): Promise<Client[]> {
     // Get all agents under this sales staff
     const agents = await this.getUsersBySalesStaff(salesStaffId);
+    if (agents.length === 0) {
+      return [];
+    }
+    
     const agentIds = agents.map(agent => agent.id);
     
-    // Get all clients from these agents
-    return Array.from(this.clients.values())
-      .filter(client => agentIds.includes(client.agentId));
+    return await db
+      .select()
+      .from(clients)
+      .where(sql`${clients.agentId} IN (${agentIds.join(',')})`)
+      .orderBy(desc(clients.createdAt));
   }
 
   async getClientsByDateRange(agentId: number, startDate: Date, endDate: Date): Promise<Client[]> {
-    return Array.from(this.clients.values())
-      .filter(client => 
-        client.agentId === agentId && 
-        client.interactionTime >= startDate && 
-        client.interactionTime <= endDate
-      );
+    return await db
+      .select()
+      .from(clients)
+      .where(and(
+        eq(clients.agentId, agentId),
+        gte(clients.interactionTime, startDate),
+        lte(clients.interactionTime, endDate)
+      ))
+      .orderBy(desc(clients.createdAt));
   }
 
   // Agent Groups
   async createAgentGroup(groupData: InsertAgentGroup): Promise<AgentGroup> {
-    const id = this.nextIds.agentGroup++;
-    const now = new Date();
-    const group: AgentGroup = {
-      ...groupData,
-      id,
-      createdAt: now,
-      updatedAt: now
-    };
-    this.agentGroups.set(id, group);
+    const [group] = await db
+      .insert(agentGroups)
+      .values(groupData)
+      .returning();
     return group;
   }
 
   async getAgentGroupsByTeamLeader(teamLeaderId: number): Promise<AgentGroup[]> {
-    return Array.from(this.agentGroups.values())
-      .filter(group => group.teamLeaderId === teamLeaderId);
+    return await db
+      .select()
+      .from(agentGroups)
+      .where(eq(agentGroups.teamLeaderId, teamLeaderId));
   }
 
   async getAgentGroupBySalesStaff(salesStaffId: number): Promise<AgentGroup[]> {
-    return Array.from(this.agentGroups.values())
-      .filter(group => group.salesStaffId === salesStaffId);
+    return await db
+      .select()
+      .from(agentGroups)
+      .where(eq(agentGroups.salesStaffId, salesStaffId));
   }
 
   async addAgentToGroup(groupId: number, agentId: number): Promise<AgentGroupMember> {
-    const id = this.nextIds.agentGroupMember++;
-    const now = new Date();
-    const member: AgentGroupMember = {
-      id,
-      groupId,
-      agentId,
-      createdAt: now
-    };
-    this.agentGroupMembers.set(id, member);
+    const [member] = await db
+      .insert(agentGroupMembers)
+      .values({
+        groupId,
+        agentId
+      })
+      .returning();
     return member;
   }
 
   async removeAgentFromGroup(groupId: number, agentId: number): Promise<void> {
-    const memberToRemove = Array.from(this.agentGroupMembers.values())
-      .find(member => member.groupId === groupId && member.agentId === agentId);
-    
-    if (memberToRemove) {
-      this.agentGroupMembers.delete(memberToRemove.id);
-    }
+    await db
+      .delete(agentGroupMembers)
+      .where(and(
+        eq(agentGroupMembers.groupId, groupId),
+        eq(agentGroupMembers.agentId, agentId)
+      ));
   }
 
   async getAgentGroupMembers(groupId: number): Promise<User[]> {
-    const memberIds = Array.from(this.agentGroupMembers.values())
-      .filter(member => member.groupId === groupId)
-      .map(member => member.agentId);
+    const members = await db
+      .select({
+        agentId: agentGroupMembers.agentId
+      })
+      .from(agentGroupMembers)
+      .where(eq(agentGroupMembers.groupId, groupId));
     
-    return Array.from(this.users.values())
-      .filter(user => memberIds.includes(user.id));
+    if (members.length === 0) {
+      return [];
+    }
+    
+    const agentIds = members.map(member => member.agentId);
+    
+    return await db
+      .select()
+      .from(users)
+      .where(sql`${users.id} IN (${agentIds.join(',')})`);
   }
 
   // Reports
   async createReport(reportData: InsertReport): Promise<Report> {
-    const id = this.nextIds.report++;
-    const now = new Date();
-    const report: Report = {
-      ...reportData,
-      id,
-      createdAt: now
-    };
-    this.reports.set(id, report);
+    const [report] = await db
+      .insert(reports)
+      .values(reportData)
+      .returning();
     return report;
   }
 
   async getReportsByUser(userId: number): Promise<Report[]> {
-    return Array.from(this.reports.values())
-      .filter(report => report.submittedById === userId);
+    return await db
+      .select()
+      .from(reports)
+      .where(eq(reports.submittedById, userId))
+      .orderBy(desc(reports.createdAt));
   }
 
   async getReportsByType(userId: number, type: string): Promise<Report[]> {
-    return Array.from(this.reports.values())
-      .filter(report => report.submittedById === userId && report.reportType === type);
+    return await db
+      .select()
+      .from(reports)
+      .where(and(
+        eq(reports.submittedById, userId),
+        eq(reports.reportType, type)
+      ))
+      .orderBy(desc(reports.createdAt));
   }
 
   async getReportsBySalesStaff(salesStaffId: number): Promise<Report[]> {
     // Get all agents under this sales staff
     const agents = await this.getUsersBySalesStaff(salesStaffId);
+    if (agents.length === 0) {
+      return [];
+    }
+    
     const agentIds = agents.map(agent => agent.id);
     
-    // Get all reports from these agents
-    return Array.from(this.reports.values())
-      .filter(report => agentIds.includes(report.submittedById));
+    return await db
+      .select()
+      .from(reports)
+      .where(sql`${reports.submittedById} IN (${agentIds.join(',')})`)
+      .orderBy(desc(reports.createdAt));
   }
 
   // Help Requests
   async createHelpRequest(requestData: InsertHelpRequest): Promise<HelpRequest> {
-    const id = this.nextIds.helpRequest++;
-    const now = new Date();
-    const request: HelpRequest = {
-      ...requestData,
-      id,
-      createdAt: now,
-      updatedAt: now
-    };
-    this.helpRequests.set(id, request);
+    const [request] = await db
+      .insert(helpRequests)
+      .values(requestData)
+      .returning();
     return request;
   }
 
   async getHelpRequests(): Promise<HelpRequest[]> {
-    return Array.from(this.helpRequests.values());
+    return await db
+      .select()
+      .from(helpRequests)
+      .orderBy(desc(helpRequests.createdAt));
   }
 
   async updateHelpRequest(id: number, updates: Partial<HelpRequest>): Promise<HelpRequest | undefined> {
-    const request = this.helpRequests.get(id);
-    if (!request) return undefined;
-    
-    const updatedRequest: HelpRequest = {
-      ...request,
-      ...updates,
-      updatedAt: new Date()
-    };
-    
-    this.helpRequests.set(id, updatedRequest);
+    const [updatedRequest] = await db
+      .update(helpRequests)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(helpRequests.id, id))
+      .returning();
     return updatedRequest;
   }
 
   // Messages
   async createMessage(senderId: number, receiverId: number, content: string): Promise<Message> {
-    const id = this.nextIds.message++;
-    const now = new Date();
-    const message: Message = {
-      id,
-      senderId,
-      receiverId,
-      content,
-      isRead: false,
-      createdAt: now
-    };
-    this.messages.set(id, message);
+    const [message] = await db
+      .insert(messages)
+      .values({
+        senderId,
+        receiverId,
+        content,
+        isRead: false
+      })
+      .returning();
     return message;
   }
 
   async getMessagesByUser(userId: number): Promise<Message[]> {
-    return Array.from(this.messages.values())
-      .filter(message => message.senderId === userId || message.receiverId === userId);
+    return await db
+      .select()
+      .from(messages)
+      .where(or(
+        eq(messages.senderId, userId),
+        eq(messages.receiverId, userId)
+      ))
+      .orderBy(desc(messages.createdAt));
   }
 
   async markMessageAsRead(messageId: number): Promise<void> {
-    const message = this.messages.get(messageId);
-    if (message) {
-      message.isRead = true;
-      this.messages.set(messageId, message);
-    }
+    await db
+      .update(messages)
+      .set({ isRead: true })
+      .where(eq(messages.id, messageId));
   }
 }
 
-export const storage = new MemStorage();
+// Initialize storage
+export const storage = new DatabaseStorage();

@@ -167,3 +167,30 @@ export type LoginUser = {
   password: string;
   workId: string;
 };
+
+// Login schema
+import { z } from "zod";
+
+export const loginUserSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  workId: z.string().min(3)
+});
+
+// Export tables and enums
+export {
+  users,
+  attendanceTimeframes,
+  attendance,
+  agentGroups,
+  agentGroupMembers,
+  clients,
+  reports,
+  helpRequests,
+  messages,
+  performanceMetrics,
+  roleEnum,
+  reportTypeEnum,
+  reportStatusEnum,
+  messageTypeEnum
+};

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { 
-  ArrowLeft, Search, PlusCircle, Eye, Edit, Trash, UserPlus
+  ArrowLeft, Search, PlusCircle, Eye, Edit, Trash, UserPlus, AlertCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";

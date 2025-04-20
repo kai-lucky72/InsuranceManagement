@@ -491,18 +491,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Agent routes
   app.get("/api/agent/attendance-window", isAuthenticated, hasRole(["Agent", "TeamLeader"]), async (req, res) => {
     try {
-      // Agents need to know their sales staff's attendance window
-      // For simplicity, we'll assume they know their sales staff ID
-      // In a real system, there would be a relation between agents and their sales staff
-      const salesStaffId = parseInt(req.query.salesStaffId as string);
+      const user = req.user as Express.User;
       
-      const timeframe = await storage.getAttendanceTimeframeBySalesStaff(salesStaffId);
-      if (!timeframe) {
-        return res.status(404).json({ message: "Attendance timeframe not found" });
+      // Get the agent's sales staff through relationships
+      // For this MVP, we'll find the sales staff by querying agent groups and attendance timeframes
+      const salesStaff = await storage.getUsersByRole("SalesStaff");
+      
+      // For each sales staff, check if they have agents
+      for (const staff of salesStaff) {
+        const agents = await storage.getUsersBySalesStaff(staff.id);
+        
+        // If the current user is one of their agents
+        if (agents.some(agent => agent.id === user.id)) {
+          // Get the attendance timeframe set by this sales staff
+          const timeframe = await storage.getAttendanceTimeframeBySalesStaff(staff.id);
+          
+          if (timeframe) {
+            return res.json({
+              startTime: timeframe.startTime,
+              endTime: timeframe.endTime,
+              salesStaffId: staff.id,
+              salesStaffName: staff.fullName
+            });
+          }
+        }
       }
       
-      res.json(timeframe);
+      // If no timeframe found
+      res.status(404).json({ message: "No attendance window found for this agent" });
     } catch (error) {
+      console.error("Attendance window error:", error);
       res.status(500).json({ message: "Failed to fetch attendance window" });
     }
   });
